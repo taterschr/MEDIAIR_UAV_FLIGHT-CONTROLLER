@@ -32,12 +32,12 @@ bool LinkEstablished = false;                           // receive flag
 String OutputString = "";                               // outgoing data string to Processing
 
 // ----- software timer
-unsigned long Timer1 = 500000L;                         // 500mS loop ... used when sending data to to Processing
+unsigned long Timer1 = 50000L;                         // 500mS loop ... used when sending data to to Processing
 unsigned long Stop1;                                    // Timer1 stops when micros() exceeds this value
 
 
 int rPitch, rRoll, rHeading;
-
+int roll1, pitch1;
 
 unsigned long time;
 unsigned long start_time;
@@ -60,6 +60,11 @@ PWM CH1(10); //rudder
 PWM CH2(11); //elevator
 PWM CH3(12); //throttle
 PWM CH4(13); //aileron
+int read1; 
+int read2;
+int read3;
+int read4;
+
 
 
 
@@ -288,16 +293,29 @@ void loop() {
     display_compass_heading_on_serial_monitor();    // Display compass pitch roll & heading on Serial Monitor (115200 bauds)
     Serial.println();
     
+
+
+  Serial.print("\t");
+  Serial.print(read1);
+  
+  Serial.print("\t");
+  Serial.print(read2);
+
+  Serial.print("\t");
+  Serial.print(read3);
+
+  Serial.print("\t");
+  Serial.println(read4);
+  roll1 = rRoll;
+  pitch1 = rPitch;
+
+
+    
   } 
 
 
-
-  int roll = 1 * 180/M_PI;
-  int pitch = 1 * 180/M_PI;
-
-
-  roll = map(roll, -90, 90, 0, 180);
-  pitch = map(pitch, -90, 90, 0, 180);
+  rRoll = map(roll1, -90, 90, 0, 180);
+  rPitch = map(pitch1, -90, 90, 0, 180);
 
 
   int read1 = CH1.getValue();
@@ -305,40 +323,35 @@ void loop() {
   int read3 = CH3.getValue();
   int read4 = CH4.getValue();
 
+  if (read1 == 0){read1 = 1500;}
+  if (read2 == 0){read2 = 1500;}
+  if (read4 == 0){read4 = 1500;}
+
 
   read1 = map(read1, 1000, 2000, -90, 90);
   read2 = map(read2, 1000, 2000, -90, 90);
   read3 = map(read3, 1000, 2000, 0, 180);
   read4 = map(read4, 1000, 2000, -90, 90);
 
-
-  // Serial.print("\t");
-  // Serial.print(read1);
-  
-  // Serial.print("\t");
-  // Serial.print(read2);
-
-  // Serial.print("\t");
-  // Serial.print(read3);
-
-  // Serial.print("\t");
-  // Serial.println(read4);
-
-
-  roll = roll + read1;
-  pitch = pitch + read2;
+  read3 = constrain(read3, 0, 180);
 
 
 
-  leftAileron.write(roll);
-  leftAileron.write(roll);
+  //rRoll = rRoll + read1;
+  //rPitch = rPitch + read2;
 
-  elevator.write(pitch);
+
+
+  leftAileron.write(rRoll);
+  leftAileron.write(rRoll);
+
+  elevator.write(rPitch);
 
   throttle.write(read3);
 
   rudder.write(read2);
 
+  delay(15);
   //recieveGS();
   UAVLights();
 
@@ -602,23 +615,23 @@ void display_compass_heading_on_serial_monitor()
 
 
 
-long printNumber(short number) {
-  String myString = String(number);
-  short numberChars = myString.length();
-  for (short i = 0; i < 6 - numberChars; i++) {
-    Serial.print(" ");
-  }
-  Serial.print(myString);
-}
+// long printNumber(short number) {
+//   String myString = String(number);
+//   short numberChars = myString.length();
+//   for (short i = 0; i < 6 - numberChars; i++) {
+//     Serial.print(" ");
+//   }
+//   Serial.print(myString);
+// }
 
-// ----- Routine to stop floats jumping around
-float printNumber(float number) {
-  String myString = String(number);
-  short numberChars = myString.length();
-  for (short i = 0; i < 6 - numberChars; i++) {
-    Serial.print(" ");
-  }
-  Serial.print(myString);
-}
+// // ----- Routine to stop floats jumping around
+// float printNumber(float number) {
+//   String myString = String(number);
+//   short numberChars = myString.length();
+//   for (short i = 0; i < 6 - numberChars; i++) {
+//     Serial.print(" ");
+//   }
+//   Serial.print(myString);
+// }
 
 
