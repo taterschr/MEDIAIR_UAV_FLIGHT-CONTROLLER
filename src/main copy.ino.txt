@@ -10,41 +10,6 @@
 #include "quaternionFilters.h"
 #include "MPU9250.h"
 #include <stdio.h>
-
-#include <Wire.h>
-#include <Adafruit_PWMServoDriver.h>
-
-Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
-#define SERVO_FREQ 50 // Analog servos run at ~50 Hz updates
-#define SERVOMIN  150 // This is the 'minimum' pulse length count (out of 4096)
-#define SERVOMAX  600 // This is the 'maximum' pulse length count (out of 4096)
-
-#ifndef DEGTORAD
-#define DEGTORAD 0.0174532925199432957f
-#define RADTODEG 57.295779513082320876f
-#endif
-
-
-
-//GLIDER SETTINGS
-#define GLIDER_MODE 1//1: ON | 2: OFF
-#define RELEASE_ALTITUDE 14000 //METERS
-#define PARACHUTE_DEPLOY_ALTITUDE 2500  //METERS
-#define DECENT_PITCH 10 //DEGREES DOWNWARD (POSITIVE NUBMERS)
-#define MIN_SPEED 15 //MPH (TO COMPENSATE FOR WINDS)
-#define BATTERY_CUT_OFF_VOLTAGE 11.5
-
-
-const double HOME_LATITUDE =  39.642497;
-const double HOME_LONGITUDE = -103.197608;
-boolean releasedBalloon = false;
-boolean deployedParachute = false;
-
-//END GLIDER SETTINGS
-
-
-
-
 #define I2Cclock 400000                                 // I2C clock is 400 kilobits/s
 #define I2Cport Wire                                    // I2C using Wire library
 #define MPU9250_ADDRESS MPU9250_ADDRESS_AD0             // MPU9250 address when ADO = 0 (0x68)  
@@ -89,14 +54,14 @@ unsigned long displayUpdate_time_old;
 
 
 
-// Servo elevator; //4
-// Servo rudder; //5
-// Servo throttle; //6
-// Servo rightAileron; //7
-// Servo leftAileron; //8
-// Servo payloadDrop; //9
-// Servo aux1; //10
-// Servo aux2; //11
+Servo elevator; //4
+Servo rudder; //5
+Servo throttle; //6
+Servo rightAileron; //7
+Servo leftAileron; //8
+Servo payloadDrop; //9
+Servo aux1; //10
+Servo aux2; //11
 
 PWM CH1(2); //rudder
 PWM CH2(3); //elevator
@@ -110,9 +75,6 @@ int read4;
 float lat, lon, alt;
 int sats;
 bool homeLocSet = false;
-
-double battVoltage;
-
 
 struct GPS {
     double lat;
@@ -145,14 +107,6 @@ void setup() {
 
 
   Serial2.begin(57600);    //telemetry unit
-
-  //Servo init 
-  pwm.begin();
-  pwm.setOscillatorFrequency(27000000);
-  pwm.setPWMFreq(SERVO_FREQ);  // Analog servos run at ~50 Hz updates
-
-
-
   
   strip.begin();           // INITIALIZE NeoPixel strip object (REQUIRED)
   strip.show();            // Turn OFF all pixels ASAP
@@ -165,16 +119,31 @@ void setup() {
   tone(23, 392, 750);
   colorWipe(strip.Color(255,   0,   0), 1);
 
-  // elevator.attach(4);
-  // rudder.attach(5);
-  // throttle.attach(6);
-  // rightAileron.attach(7);
-  // leftAileron.attach(8);
-  // payloadDrop.attach(9);
-  // aux1.attach(10);
-  // aux2.attach(11);
+  elevator.attach(4);
+  rudder.attach(5);
+  throttle.attach(6);
+  rightAileron.attach(7);
+  leftAileron.attach(8);
+  payloadDrop.attach(9);
+  aux1.attach(10);
+  aux2.attach(11);
 
+  elevator.write(90);
+  rudder.write(90);
+  delay(1000);
 
+  elevator.write(50);
+  rudder.write(50);
+  Serial.print("1");
+  delay(1000);
+  elevator.write(130);
+  rudder.write(130);
+  delay(1000);
+  Serial.print("1");
+  elevator.write(90);
+  rudder.write(90);
+  delay(1000);
+  Serial.print("1");
 
   pinMode(24, INPUT_PULLUP);
   pinMode(26, INPUT_PULLUP);
@@ -385,23 +354,11 @@ void setup() {
   strip.show();
 
 
-  if(GLIDER_MODE == 1){
-    //glider mode on
-      tone(23, 250, 500);
-      delay(100);
-      tone(23, 330, 500);
-      delay(100);
-      tone(23, 250, 750);
-  }
-
-
-
 }
 
 int elevatorServoOut =0;
 int rudderServoOut =0;
-int throttleLeftOut =0;
-int throttleRightOut = 0;
+int throttleOut =0;
 int LalieronOut =0;
 int RaileronOut =0;
 int payloadDropOut =0;
@@ -412,13 +369,9 @@ char gsString[50];
 char gpsString[100];
 int firstheading = 0;
 int startHeading = 0;
-int autoSteer = 90;
-
 
 
 void loop() {
-
-  battVoltage = 50;
   
   recieveGS();
 
@@ -488,141 +441,39 @@ void loop() {
   elevatorServoOut = rPitch + read2;
 
   //if(gsString[2] == '1'){headingHold(true, rHeading);}
-  
-  //either plane or glider mode
-  if(GLIDER_MODE == 1){
-    //glider on
-    
-    // int elevatorMap = map(elevatorServoOut, 0, 180, SERVOMIN, SERVOMAX);
-    // pwm.setPWM(0, 0, elevatorMap);
-    // int rudderMap = map(rudderServoOut, 0, 180, SERVOMIN, SERVOMAX);
-    // pwm.setPWM(1, 0, rudderMap);
 
-    // int throttleLeftMap = map(throttleLeftOut, 0, 180, SERVOMIN, SERVOMAX);
-    // pwm.setPWM(2, 0, throttleLeftMap);
-    // int throttleRightMap = map(throttleRightOut, 0, 180, SERVOMIN, SERVOMAX);
-    // pwm.setPWM(3, 0, throttleRightMap);
+  elevator.write(elevatorServoOut);
+  rudder.write(rudderServoOut);
 
+  throttle.write(throttleOut);
 
-    // int leftAileronMap = map(LalieronOut, 0, 180, SERVOMIN, SERVOMAX);
-    // pwm.setPWM(4,0,leftAileronMap);
-    // int rightAileronMap = map(RaileronOut, 0, 180, SERVOMIN, SERVOMAX);
-    // pwm.setPWM(5, 0, rightAileronMap);
-
-    // int payloadDropMap = map(payloadDropOut, 0, 180, SERVOMIN, SERVOMAX);
-    // pwm.setPWM(6, 0, payloadDropMap);
-
-    // int aux1Map = map(aux1Out, 0, 180, SERVOMIN, SERVOMAX);
-    // pwm.setPWM(6, 0, aux1Map);
-
-    // int aux2Map = map(aux2Out, 0, 180, SERVOMIN, SERVOMAX);
-    // pwm.setPWM(7, 0, aux2Map);
-
-
-    //FIND IF BELOW OR AT ALTITUDE 
-    if(alt >= RELEASE_ALTITUDE){
-
-      //servos on and release 
-      //go straight down for like 1000 m then pull out
-      releasedBalloon = true;
-
-    }
-
-    //PARACHUTE RELEASE 
-    if(alt <= PARACHUTE_DEPLOY_ALTITUDE && releasedBalloon == true){
-      //release parachute 
-      //turn off servos
-      //start beeping on tone
-
-    }
-
-
-
-
-
-    //FINAL BATTERY FAILSAFE 
-    if(battVoltage < BATTERY_CUT_OFF_VOLTAGE){
-      Serial2.println("BATTERY VOLTAGE TOO LOW, FAILSAFING");
-      //write parachute servo
-      //check parachute was deployed (microswitch on parachute bay)
-      //if not deployed retry 20 times at 20 second intervals
-      //serial print if parachute fail to deploy or if it did deploy
-      while(1){
-        
-        recieveGS();
-
-        getGPS();
-        refresh_data();  
-        transmitGS();
-
-        if(alt < 2500){
-          //tone for location beacon
-          
-        }
-
-      }
-    }
-
-
-
-  }
-  if(GLIDER_MODE == 2){
-    //glider off (plane mode)
-    updateServos();
-    UAVLights();
-
-
-  }
-    
-  
+  leftAileron.write(rRoll);
+  rightAileron.write(rRoll);
+  payloadDropOut = 1500;
+  payloadDrop.writeMicroseconds(payloadDropOut);
+  aux1.write(aux1Out);
+  aux2.write(aux2Out);
+  //delay(16);
+  //updateServos();
 
   transmitGS();
 
+  UAVLights();
 
   
 }
 
 void updateServos(){
-
-  int elevatorMap = map(elevatorServoOut, 0, 180, SERVOMIN, SERVOMAX);
-  pwm.setPWM(0, 0, elevatorMap);
-  int rudderMap = map(rudderServoOut, 0, 180, SERVOMIN, SERVOMAX);
-  pwm.setPWM(1, 0, rudderMap);
-
-  int throttleLeftMap = map(throttleLeftOut, 0, 180, SERVOMIN, SERVOMAX);
-  pwm.setPWM(2, 0, throttleLeftMap);
-  int throttleRightMap = map(throttleRightOut, 0, 180, SERVOMIN, SERVOMAX);
-  pwm.setPWM(3, 0, throttleRightMap);
-
-
-  int leftAileronMap = map(LalieronOut, 0, 180, SERVOMIN, SERVOMAX);
-  pwm.setPWM(4,0,leftAileronMap);
-  int rightAileronMap = map(RaileronOut, 0, 180, SERVOMIN, SERVOMAX);
-  pwm.setPWM(5, 0, rightAileronMap);
-
-  int payloadDropMap = map(payloadDropOut, 0, 180, SERVOMIN, SERVOMAX);
-  pwm.setPWM(6, 0, payloadDropMap);
-
-  int aux1Map = map(aux1Out, 0, 180, SERVOMIN, SERVOMAX);
-  pwm.setPWM(6, 0, aux1Map);
-
-  int aux2Map = map(aux2Out, 0, 180, SERVOMIN, SERVOMAX);
-  pwm.setPWM(7, 0, aux2Map);
-
-
-
-
-  // elevator.write(elevatorServoOut);
-  // rudder.write(rudderServoOut);
-
-  // throttle.write(throttleOut);
-
-  // leftAileron.write(rRoll);
-  // rightAileron.write(rRoll);
-  // payloadDropOut = 1500;
-  // payloadDrop.writeMicroseconds(payloadDropOut);
-  // aux1.write(aux1Out);
-  // aux2.write(aux2Out);
+  servoUpdate_time = millis();
+  if(servoUpdate_time-servoUpdate_old_time >= 20){
+    char buf[3];
+    Serial.print(F("S::000.000.000.000.000."));
+    sprintf(buf, "%03d", elevatorServoOut);
+    Serial.print(buf);
+    Serial.println(F(".000.000"));
+  }
+  servoUpdate_old_time = servoUpdate_time;  
+  
 }
 
 
@@ -638,44 +489,6 @@ void recieveGS(){
     gsString[availableBytes] = '\0';
     Serial.print(gsString);
   }
-
-  //determine what string it is "LTS"-lights "WPT"-waypoint or "CTL"-Aircraft control
-
-  //if LTS in start of string, control lights
-  if(gsString[0] == 'L' && gsString[1] == 'T' && gsString[2] == 'S'){
-    //recieved lights string
-    //since big string length
-  }  
-
-
-
-  //if WPT in start of string, add to wpt list or to current nav(probably)
-    if(gsString[0] == 'W' && gsString[1] == 'P' && gsString[2] == 'T'){
-
-  }
-
-  //if CTL recieved, control the servo outputs directly (for later dev on ground station code to be able to fly uav without 2.4 ghz transmitter)
-  if(gsString[0] == 'C' && gsString[1] == 'T' && gsString[2] == 'L'){
-    if(gsString[4] == '1' && GLIDER_MODE == 1){
-      alt = RELEASE_ALTITUDE;
-      releaseParachute();
-      Serial2.println("INF:Ack, Releasing parachute");
-      
-    }
-    if(gsString[6] == '1' && GLIDER_MODE == 1){
-      alt = RELEASE_ALTITUDE;
-      releaseBalloon();
-      Serial2.println("INF:Ack Failsafe, Releasing ballon now");
-      
-    }
-  }
-
-
-  //if drp is recieved, drop based upon payload assignments
-    if(gsString[0] == 'D' && gsString[1] == 'R' && gsString[2] == 'P'){
-
-  }
-
 
   if(gsString[0] == '1'){
     locatorBeacon(true);
@@ -705,7 +518,6 @@ void recieveGS(){
 void transmitGS(){
   gsUpdate_time = millis();
   if(gsUpdate_time - gsUpdate_old_time >= 500){
-    Serial2.flush();
     //serial print whatever (lat, long, alt, heading, pitch, roll, autonav, manualnav, whatever)
     Serial2.print(F("GPS: "));
     Serial2.print(lat, 8);
@@ -718,118 +530,21 @@ void transmitGS(){
     Serial2.print(". Nav: ");
     Serial2.print(rHeading);
     Serial2.print(",");
-    Serial2.print(rRoll );
+    Serial2.print(elevatorServoOut);
     Serial2.print(",");
-    Serial2.print(rPitch);
+    Serial2.print(rudderServoOut);
     Serial2.print(",");
-    if (GLIDER_MODE == 1){
-      Serial2.print("111");
-      if(releasedBalloon == true){
-        Serial2.print(",");
-        Serial2.print("1");
-      }
-      if(deployedParachute == true){
-        Serial2.print(",");
-        Serial2.print("1");        
-      }
-
-
-      else{
-        Serial2.print(",");
-        Serial2.print("0"); 
-        Serial2.print(",");
-        Serial2.print("0");          
-      }
-      
-
-    }
-    else
-    {
-      Serial2.print("000");
-      Serial2.print(",");
-      Serial2.print("000");
-    }
-
+    Serial2.print(LalieronOut);
+    Serial2.print(",");
+    Serial2.print(payloadDropOut);
 
 
     Serial2.println();
-    
-
   
-
     gsUpdate_old_time = gsUpdate_time;
   }
 
 
-}
-
-void releaseBalloon(){
-  noInterrupts();
-  //only for Glider operation
-  int servoVal = 0;
-  int tries = 0;
-  boolean success = false;
-  int releaseMap = map(servoVal, 0, 180, SERVOMIN, SERVOMAX);
-  pwm.setPWM(7, 0, releaseMap);
-
-  
-  while(digitalRead(26) == 0 && tries < 10){
-    pwm.setPWM(7, 0, releaseMap);
-    releaseMap = map(180, 0, 180, SERVOMIN, SERVOMAX);
-    pwm.setPWM(7, 0, releaseMap);
-    delay(100);
-    releaseMap = map(0, 0, 180, SERVOMIN, SERVOMAX);
-    pwm.setPWM(7, 0, releaseMap);
-    tries++;
-
-  }
-  if(digitalRead(26) == 1){
-    //balloon successfully released
-    Serial2.println("INF:Balloon Released");
-    releasedBalloon = true;
-  } 
-  if(digitalRead(26) == 0 && tries == 10){
-    Serial2.println("INF:BALLOON FAILED TO RELEASE");
-    Serial2.println("ERR:100:");
-    delay(10);
-    Serial2.println("INF:DEPLOYING PARACHUTE");
-    releaseParachute();
-
-  }
-
-  interrupts();
-}
-void releaseParachute(){
-  //only for Glider operation
-  noInterrupts();
-  int servoVal = 10;
-  int tries = 0;
-  boolean success = false;
-  int releaseMap = map(servoVal, 0, 180, SERVOMIN, SERVOMAX);
-  pwm.setPWM(8, 10, releaseMap);
-
-  while(digitalRead(28) == 0 && tries < 10){
-    pwm.setPWM(8, 0, releaseMap);
-    releaseMap = map(170, 0, 180, SERVOMIN, SERVOMAX);
-    pwm.setPWM(8, 0, releaseMap);
-    delay(100);
-    releaseMap = map(10, 0, 180, SERVOMIN, SERVOMAX);
-    pwm.setPWM(8, 0, releaseMap);
-    tries++;
-
-  }
-  if(digitalRead(28) == 1){
-    Serial2.println("INF:Parachute Deployed");
-    deployedParachute = true;
-  }
-  if(digitalRead(28) == 0 && tries == 10){
-    Serial2.println("INF:PARACHUTE FAILED TO DEPLOY");
-    Serial2.println("ERR:110");
-    delay(10);
-    Serial2.println("INF:MANUAL INTERVENTION NECESSARY");
-  }
-
-  interrupts();
 }
 
 
@@ -884,7 +599,7 @@ void altitudeHold(double setpoint){
   }
   if(distance < 0){
     //going down
-    #define maxIncline 20 //degrees
+        #define maxIncline 20 //degrees
     if (distance > -10){
       //maxincline/2 to not cause so much of an oscillation
       rPitch = rPitch + (maxIncline/2);
@@ -921,6 +636,7 @@ void getGPS(){
     
 
 
+    //Serial.println(lat, 20);
   }
   if(lat == 0 || lon == 0 || alt == 0 || sats == 0){
       strip.setPixelColor(0, strip.Color(255,0,0));
@@ -952,6 +668,11 @@ void getGPS(){
       strip.setPixelColor(14, strip.Color(0,255,0));
       strip.show();
     }
+  //Serial read
+
+  //Parse
+
+  //Store data
 
 }
 
@@ -966,9 +687,11 @@ static void GPSloop()
 
 static void doSomeWork()
 {
+  // Print all the things!
+
   trace_all( DEBUG_PORT, gps, fix );
 
-} 
+} // doSomeWork
 
 
 
@@ -978,42 +701,6 @@ void APRSTransmit(){
 
 
 void autoWaypointNav(double targetLat, double targetLon){
-  float y = sin(targetLon-currentLocation.lon) * cos(targetLat);
-  float x = cos(currentLocation.lat)*sin(targetLat) - sin(currentLocation.lat)*cos(targetLat)*cos(targetLon-currentLocation.lon);
-  int bearing = atan2(y, x) * RADTODEG;
-
-  //current heading rHeading
-  
-  float turn = bearing - rHeading;
-  while (turn < -180) turn += 360;
-  while (turn >  180) turn -= 360;
-
-  autoSteer = map(turn, 180, -180, 0, 180);
-  autoSteer = constrain(autoSteer, 40, 140);
-
-  //determine if ele & rudder tail
-  //prolly have to do elevation at the same time
-  //so grab elevation needed first (also parse it with speed (upper bounds of the speed on it prolly only after 80% of RELEASE_ALTITUDE(which also means i have to a pretty steep downward pitch for the first 20% of RELEASE_ALTITUDE)))
-  //parse the elevation and rudder movement together using some of this
-  //############################
-    
-  // double reverse(double val) {
-  // return (val-1500) * -1 + 1500;
-  // }
-
-  // double add(double val1, double val2) {
-  // double out = (val1 -1500 + val2 -1500) + 1500;
-  // out = (out < 1000) ? 1000 : out;
-  // out = (out > 2000) ? 2000 : out;
-  // return out;
-  // }
-
-  // void serviceServos(long pFrameCounter) {
-  
-  // // do the v-tail mixing 
-  // double left  = add(Chan2_val, Chan1_val);
-  // double right = add(reverse(Chan2_val), Chan1_val);
-  //############################
   
 }
 
